@@ -206,7 +206,7 @@ export const httpApi = {
 
   // Reading Progress
   saveReadingProgress: (progress: ReadingProgressDTO): Promise<void> =>
-    put(`/api/progress/${progress.docId}`, progress),
+    put(`/api/progress/${progress.doc_id}`, progress),
   getReadingProgress: (docID: string): Promise<ReadingProgressDTO> =>
     get(`/api/progress/${docID}`),
 
