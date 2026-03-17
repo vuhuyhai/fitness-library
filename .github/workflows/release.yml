@@ -1,0 +1,138 @@
+name: Release
+
+# Trigger: push a tag like v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # needed to create GitHub Release
+
+jobs:
+  # ─── Windows ───────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build Windows (exe + NSIS installer)
+        run: wails build -platform windows/amd64 -ldflags "-s -w" -nsis -clean
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            build/bin/FitnessLibrary.exe
+            build/bin/FitnessLibrary-amd64-installer.exe
+
+  # ─── macOS ─────────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build macOS universal
+        run: wails build -platform darwin/universal -ldflags "-s -w" -clean
+
+      - name: Zip .app bundle
+        run: |
+          cd build/bin
+          zip -r FitnessLibrary-macOS.zip FitnessLibrary.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: build/bin/FitnessLibrary-macOS.zip
+
+  # ─── Linux ─────────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install WebKitGTK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build Linux
+        run: wails build -platform linux/amd64 -ldflags "-s -w" -clean
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: build/bin/FitnessLibrary
+
+  # ─── Create GitHub Release ─────────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Fitness Library ${{ github.ref_name }}"
+          body: |
+            ## Fitness Library ${{ github.ref_name }}
+
+            ### Tải xuống
+            | Platform | File |
+            |----------|------|
+            | Windows (Installer) | `FitnessLibrary-amd64-installer.exe` |
+            | Windows (Portable)  | `FitnessLibrary.exe` |
+            | macOS (Universal)   | `FitnessLibrary-macOS.zip` |
+            | Linux (x86_64)      | `FitnessLibrary` |
+
+            ### Yêu cầu
+            - **Windows**: WebView2 Runtime (installer tự cài)
+            - **macOS**: macOS 11+, right-click → Open lần đầu
+            - **Linux**: `libwebkit2gtk-4.0`, `libgtk-3-0`
+          files: |
+            artifacts/windows-build/FitnessLibrary.exe
+            artifacts/windows-build/FitnessLibrary-amd64-installer.exe
+            artifacts/macos-build/FitnessLibrary-macOS.zip
+            artifacts/linux-build/FitnessLibrary
+          draft: false
+          prerelease: false
