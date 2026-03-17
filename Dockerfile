@@ -22,9 +22,6 @@ WORKDIR /app
 COPY --from=server   /app/fitness-server   ./fitness-server
 COPY --from=frontend /app/frontend/dist    ./frontend/dist
 
-# Data directory (SQLite DB, uploads, thumbnails)
-VOLUME ["/data"]
-
 EXPOSE 8080
 
 CMD ["./fitness-server", "--host=0.0.0.0", "--port=8080", "--frontend=./frontend/dist"]
