@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, RefreshCw, Folder, Database, ExternalLink, Plus, Trash2, Download, Bot } from 'lucide-react'
+import { Eye, EyeOff, RefreshCw, Folder, Database, ExternalLink, Plus, Trash2, Download, Bot, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '../../lib/wailsApi'
+import { api, isWails } from '../../lib/wailsApi'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import type { Category } from '../../types'
@@ -48,6 +48,10 @@ export default function SettingsPage() {
   const [settings, setLocalSettings] = useState<Record<string, string>>({})
   const [showKey, setShowKey]         = useState(false)
   const [saving, setSaving]           = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPwd, setShowNewPwd]   = useState(false)
+  const [changingPwd, setChangingPwd] = useState(false)
   const [testing, setTesting]         = useState(false)
   const [dbStats, setDbStats]         = useState<Record<string, unknown> | null>(null)
   const [appVersion, setAppVersion]   = useState('1.0.0')
@@ -130,6 +134,28 @@ export default function SettingsPage() {
       toast.success('Đã xóa thumbnail cache')
     } catch (e) {
       toast.error('Lỗi: ' + String(e))
+    }
+  }
+
+  async function changePassword() {
+    if (newPassword.length < 6) {
+      toast.error('Mật khẩu phải có ít nhất 6 ký tự')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Mật khẩu xác nhận không khớp')
+      return
+    }
+    setChangingPwd(true)
+    try {
+      await api.saveSettings({ 'admin.new_password': newPassword })
+      setNewPassword('')
+      setConfirmPassword('')
+      toast.success('Đã đổi mật khẩu thành công')
+    } catch (e) {
+      toast.error('Lỗi đổi mật khẩu: ' + String(e))
+    } finally {
+      setChangingPwd(false)
     }
   }
 
@@ -531,6 +557,49 @@ export default function SettingsPage() {
             </div>
           </div>
         </Section>
+
+        {/* ── Bảo Mật (web only) ── */}
+        {!isWails && (
+          <Section accent="#dc2626" title="Bảo Mật">
+            <div className="space-y-3">
+              <Field label="Mật khẩu mới">
+                <div className="relative">
+                  <input
+                    type={showNewPwd ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                    className="w-full bg-surface-3 border border-border rounded-md px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none focus:border-border-focus pr-9 transition-colors"
+                  />
+                  <button
+                    onClick={() => setShowNewPwd((p) => !p)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg-primary transition-colors"
+                  >
+                    {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </Field>
+              <Field label="Xác nhận mật khẩu">
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && changePassword()}
+                  placeholder="Nhập lại mật khẩu mới"
+                  className="w-full bg-surface-3 border border-border rounded-md px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none focus:border-border-focus transition-colors"
+                />
+              </Field>
+              <button
+                onClick={changePassword}
+                disabled={changingPwd || !newPassword || !confirmPassword}
+                className="flex items-center gap-1.5 px-4 py-2 bg-danger hover:bg-danger/80 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
+              >
+                <KeyRound className="w-4 h-4" />
+                {changingPwd ? 'Đang đổi...' : 'Đổi Mật Khẩu'}
+              </button>
+            </div>
+          </Section>
+        )}
 
         {/* ── Debug & Bảo Trì ── */}
         <Section accent="#6b7280" title="Debug & Bảo Trì">
