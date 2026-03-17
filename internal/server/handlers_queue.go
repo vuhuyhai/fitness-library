@@ -64,6 +64,22 @@ func (s *Server) handleClearDoneQueue(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleUpdateQueueItemCategory(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		CatID string `json:"cat_id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.queueRepo.UpdateCatID(id, body.CatID); err != nil {
+		writeError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeOK(w, map[string]bool{"ok": true})
+}
+
 // handleUploadFiles accepts multipart file uploads, saves them to uploadDir,
 // and queues them for processing. Replaces the desktop SelectFiles dialog.
 func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {

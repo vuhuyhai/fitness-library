@@ -97,6 +97,7 @@ type ImportQueueItem struct {
 	FilePath  string `json:"file_path"`
 	FileName  string `json:"file_name"`
 	FileType  string `json:"file_type"`
+	CatID     string `json:"cat_id"`
 	Status    string `json:"status"` // pending|processing|done|error
 	ErrorMsg  string `json:"error_msg"`
 	Progress  int    `json:"progress"`

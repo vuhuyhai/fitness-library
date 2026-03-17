@@ -1,11 +1,11 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { Upload, Play, Pause, Trash2, FileText, Film, FileType2, StickyNote, Terminal, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, isWails } from '../../lib/wailsApi'
 import { uploadFiles } from '../../lib/httpApi'
 import { useQueueStore } from '../../store/useQueueStore'
 import { EventsOn } from '../../lib/events'
-import type { QueueProgressPayload } from '../../types'
+import type { QueueProgressPayload, Category } from '../../types'
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   pdf:     FileType2,
@@ -29,6 +29,7 @@ export default function ImportPage() {
   const { items, running, paused, logs, setItems, addItems, updateItem, setRunning, setPaused, clearDone, addLog, clearLogs } = useQueueStore()
   const logRef     = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [categories, setCategories] = useState<Category[]>([])
 
   // Auto-scroll terminal log
   useEffect(() => {
@@ -37,13 +38,14 @@ export default function ImportPage() {
     }
   }, [logs])
 
-  // Load initial queue status
+  // Load initial queue status + categories
   useEffect(() => {
     api.getQueueStatus().then((s) => {
       setItems(s.items)
       setRunning(s.running)
       setPaused(s.paused)
     }).catch(console.error)
+    api.getCategories().then(setCategories).catch(console.error)
   }, [])
 
   // Desktop: listen to Wails queue events
@@ -127,6 +129,15 @@ export default function ImportPage() {
     const newPaused = !paused
     setPaused(newPaused)
     addLog(newPaused ? '⏸ Tạm dừng' : '▶ Tiếp tục')
+  }
+
+  async function handleCategoryChange(itemId: string, catId: string) {
+    try {
+      await api.updateQueueItemCategory(itemId, catId)
+      setItems(items.map((i) => i.id === itemId ? { ...i, cat_id: catId } : i))
+    } catch (e) {
+      toast.error('Lỗi cập nhật danh mục: ' + String(e))
+    }
   }
 
   async function handleClearDone() {
@@ -265,6 +276,18 @@ export default function ImportPage() {
                           {STATUS_LABELS[item.status]}
                         </span>
                       </div>
+                      {item.status === 'pending' && categories.length > 0 && (
+                        <select
+                          value={item.cat_id || ''}
+                          onChange={(e) => handleCategoryChange(item.id, e.target.value)}
+                          className="mt-1.5 w-full text-xs bg-surface-3 border border-border rounded px-2 py-1 text-fg-secondary focus:outline-none focus:border-border-focus cursor-pointer"
+                        >
+                          <option value="">— Chọn danh mục —</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                          ))}
+                        </select>
+                      )}
                       {item.status === 'processing' && (
                         <div className="mt-1.5 h-1 bg-surface-3 rounded-full overflow-hidden">
                           <div

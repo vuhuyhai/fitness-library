@@ -42,7 +42,8 @@ func (s *Server) setupRoutes() http.Handler {
 	mux.HandleFunc("POST /api/admin/queue/start",       s.requireAdmin(s.handleStartQueue))
 	mux.HandleFunc("POST /api/admin/queue/pause",       s.requireAdmin(s.handlePauseQueue))
 	mux.HandleFunc("DELETE /api/admin/queue/done",      s.requireAdmin(s.handleClearDoneQueue))
-	mux.HandleFunc("POST /api/admin/queue/upload",      s.requireAdmin(s.handleUploadFiles))
+	mux.HandleFunc("POST /api/admin/queue/upload",           s.requireAdmin(s.handleUploadFiles))
+	mux.HandleFunc("PUT /api/admin/queue/{id}/category",     s.requireAdmin(s.handleUpdateQueueItemCategory))
 
 	// ── Settings ──────────────────────────────────────────────────────────
 	mux.HandleFunc("GET /api/admin/settings",           s.requireAdmin(s.handleGetSettings))

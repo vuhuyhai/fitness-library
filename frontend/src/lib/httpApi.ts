@@ -171,6 +171,8 @@ export const httpApi = {
     get('/api/admin/queue'),
   clearDoneQueue: (): Promise<void> =>
     del('/api/admin/queue/done'),
+  updateQueueItemCategory: (id: string, catId: string): Promise<void> =>
+    put(`/api/admin/queue/${id}/category`, { cat_id: catId }),
 
   // Settings
   getSettings: (): Promise<Record<string, string>> =>

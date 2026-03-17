@@ -73,6 +73,8 @@ const _wailsImpl = {
     go().GetQueueStatus(),
   clearDoneQueue: (): Promise<void> =>
     go().ClearDoneQueue(),
+  updateQueueItemCategory: (_id: string, _catId: string): Promise<void> =>
+    Promise.resolve(), // desktop: category set via native UI
 
   // Settings
   getSettings: (): Promise<Record<string, string>> =>

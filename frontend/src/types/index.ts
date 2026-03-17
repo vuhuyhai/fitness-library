@@ -95,6 +95,7 @@ export interface ImportQueueItem {
   file_path: string
   file_name: string
   file_type: string
+  cat_id: string
   status: 'pending' | 'processing' | 'done' | 'error'
   error_msg: string
   progress: number

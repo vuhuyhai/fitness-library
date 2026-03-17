@@ -175,10 +175,14 @@ func (qs *QueueService) processItem(item models.ImportQueueItem) {
 
 	// Create document
 	title := strings.TrimSuffix(filepath.Base(item.FilePath), filepath.Ext(item.FilePath))
+	catID := item.CatID
+	if catID == "" {
+		catID = "cat-workout" // fallback default
+	}
 	input := models.CreateDocumentInput{
 		Title:    title,
 		Type:     fileType,
-		CatID:    "cat-workout", // Default; AI will help re-classify
+		CatID:    catID,
 		FilePath: item.FilePath,
 		Content:  text,
 		Tags:     []string{},
