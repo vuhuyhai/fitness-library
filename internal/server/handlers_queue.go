@@ -69,8 +69,7 @@ func (s *Server) handleUpdateQueueItemCategory(w http.ResponseWriter, r *http.Re
 	var body struct {
 		CatID string `json:"cat_id"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeError(w, err.Error(), http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if err := s.queueRepo.UpdateCatID(id, body.CatID); err != nil {
