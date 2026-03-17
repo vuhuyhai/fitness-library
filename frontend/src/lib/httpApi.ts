@@ -19,7 +19,7 @@ import type {
   ChatResponse,
   TermExplanation,
 } from '../types'
-import { getToken } from './auth'
+import { getToken, clearToken } from './auth'
 
 // In production the API is on the same origin. Set VITE_API_BASE for dev proxy.
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
@@ -35,9 +35,17 @@ function authHeaders(): HeadersInit {
     : { 'Content-Type': 'application/json' }
 }
 
+function handleUnauthorized(res: Response) {
+  if (res.status === 401) {
+    clearToken()
+    window.location.reload()
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(url(path), { headers: authHeaders() })
   if (!res.ok) {
+    handleUnauthorized(res)
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)
   }
@@ -51,6 +59,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
     body:    body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
+    handleUnauthorized(res)
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)
   }
@@ -64,6 +73,7 @@ async function put<T>(path: string, body?: unknown): Promise<T> {
     body:    body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
+    handleUnauthorized(res)
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)
   }
@@ -73,6 +83,7 @@ async function put<T>(path: string, body?: unknown): Promise<T> {
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(url(path), { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
+    handleUnauthorized(res)
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)
   }
