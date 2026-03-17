@@ -76,6 +76,16 @@ const _wailsImpl = {
   updateQueueItemCategory: (_id: string, _catId: string): Promise<void> =>
     Promise.resolve(), // desktop: category set via native UI
 
+  // Thumbnails — stubs for desktop (handled natively or via Wails bindings)
+  generateThumbnail: (_docId: string): Promise<{ cover_path: string; url: string; source: string }> =>
+    Promise.resolve({ cover_path: '', url: '', source: 'svg' }),
+  uploadThumbnail: (_docId: string, _file: File): Promise<{ cover_path: string; url: string }> =>
+    Promise.resolve({ cover_path: '', url: '' }),
+  deleteThumbnail: (_docId: string): Promise<void> =>
+    Promise.resolve(),
+  batchGenerateThumbnails: (): Promise<{ queued: number }> =>
+    Promise.resolve({ queued: 0 }),
+
   // Settings
   getSettings: (): Promise<Record<string, string>> =>
     go().GetSettings(),

@@ -11,6 +11,7 @@ import ArticleTab from './tabs/ArticleTab'
 import FileTab from './tabs/FileTab'
 import WorkoutTab, { GOALS, LEVELS, emptyExercise } from './tabs/WorkoutTab'
 import NoteTab from './tabs/NoteTab'
+import ThumbnailPicker from '../../admin/components/ThumbnailPicker'
 
 type TabKey = 'article' | 'file' | 'workout' | 'note'
 
@@ -39,6 +40,9 @@ export default function AddDocumentPage() {
   const [tags, setTags]           = useState<string[]>([])
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [coverPath, setCoverPath] = useState('')
+  const [thumbSource, setThumbSource] = useState('svg')
+  const [savedDocId, setSavedDocId] = useState('')
 
   // Tab-specific state
   const [articleContent, setArticleContent] = useState('')
@@ -129,8 +133,10 @@ export default function AddDocumentPage() {
       if (aiEnabled && doc.id) {
         api.runAIPipeline(doc.id).catch(() => {})
       }
-      toast.success('Đã lưu tài liệu')
-      navigate('/library')
+      setSavedDocId(doc.id)
+      toast.success('Đã lưu tài liệu — đang tạo thumbnail...')
+      // Trigger AI thumbnail in background then navigate
+      api.generateThumbnail(doc.id).catch(() => {}).finally(() => navigate('/library'))
     } catch (e) {
       toast.error('Lỗi lưu: ' + String(e))
     } finally {
@@ -319,6 +325,19 @@ export default function AddDocumentPage() {
               >
                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${aiEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
+            </div>
+
+            {/* Thumbnail */}
+            <div>
+              <label className="text-xs text-fg-secondary block mb-1.5">Thumbnail</label>
+              <ThumbnailPicker
+                docId={savedDocId}
+                title={title}
+                catId={catId}
+                coverPath={coverPath}
+                thumbnailSource={thumbSource}
+                onUpdate={(path, source) => { setCoverPath(path); setThumbSource(source) }}
+              />
             </div>
 
             {/* Save button */}

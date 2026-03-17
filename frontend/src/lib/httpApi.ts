@@ -174,6 +174,29 @@ export const httpApi = {
   updateQueueItemCategory: (id: string, catId: string): Promise<void> =>
     put(`/api/admin/queue/${id}/category`, { cat_id: catId }),
 
+  // Thumbnails
+  generateThumbnail: (docId: string): Promise<{ cover_path: string; url: string; source: string }> =>
+    post(`/api/admin/documents/${docId}/thumbnail`),
+  uploadThumbnail: async (docId: string, file: File): Promise<{ cover_path: string; url: string }> => {
+    const form = new FormData()
+    form.append('image', file)
+    const res = await fetch(url(`/api/admin/documents/${docId}/thumbnail/upload`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+      body: form,
+    })
+    if (!res.ok) {
+      handleUnauthorized(res)
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.error ?? res.statusText)
+    }
+    return res.json()
+  },
+  deleteThumbnail: (docId: string): Promise<void> =>
+    del(`/api/admin/documents/${docId}/thumbnail`),
+  batchGenerateThumbnails: (): Promise<{ queued: number }> =>
+    post('/api/admin/thumbnails/batch'),
+
   // Settings
   getSettings: (): Promise<Record<string, string>> =>
     get('/api/admin/settings'),

@@ -200,10 +200,19 @@ func (qs *QueueService) processItem(item models.ImportQueueItem) {
 		ID: item.ID, Status: "processing", Progress: 60,
 	})
 
-	// Generate thumbnail
+	// Generate thumbnail from file (video/pdf)
 	thumbPath, _ := qs.thumbSvc.GenerateThumbnail(doc.ID, item.FilePath, fileType)
 	if thumbPath != "" {
-		qs.docRepo.UpdateDocument(doc.ID, models.UpdateDocumentInput{CoverPath: &thumbPath})
+		source := fileType // "video" or "pdf"
+		qs.docRepo.UpdateCoverPath(doc.ID, thumbPath, source) //nolint:errcheck
+	} else {
+		// No file-based thumbnail available → async AI thumbnail via Pollinations
+		go func(docID, docTitle, catID string) {
+			aiPath, err := qs.thumbSvc.GenerateAIThumbnail(docID, docTitle, catID)
+			if err == nil && aiPath != "" {
+				qs.docRepo.UpdateCoverPath(docID, aiPath, "ai") //nolint:errcheck
+			}
+		}(doc.ID, doc.Title, item.CatID)
 	}
 	qs.emitEvent("queue:progress", models.QueueProgressPayload{
 		ID: item.ID, Status: "processing", Progress: 80,

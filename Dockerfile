@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o fitness-server ./cmd/server
 
 # ── Stage 3: Runtime image ─────────────────────────────────────────────────
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata ffmpeg
 WORKDIR /app
 
 COPY --from=server   /app/fitness-server   ./fitness-server

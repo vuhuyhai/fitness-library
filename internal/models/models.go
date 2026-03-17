@@ -10,8 +10,9 @@ type Document struct {
 	FilePath    string   `json:"file_path"`
 	Content     string   `json:"content"`
 	Summary     string   `json:"summary"`
-	CoverPath   string   `json:"cover_path"`
-	Tags        []string `json:"tags"`
+	CoverPath       string   `json:"cover_path"`
+	ThumbnailSource string   `json:"thumbnail_source"`
+	Tags            []string `json:"tags"`
 	Views       int      `json:"views"`
 	ReadTime    int      `json:"read_time"`
 	IsSaved     bool     `json:"is_saved"`

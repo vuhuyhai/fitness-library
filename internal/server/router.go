@@ -45,7 +45,13 @@ func (s *Server) setupRoutes() http.Handler {
 	mux.HandleFunc("POST /api/admin/queue/upload",           s.requireAdmin(s.handleUploadFiles))
 	mux.HandleFunc("PUT /api/admin/queue/{id}/category",     s.requireAdmin(s.handleUpdateQueueItemCategory))
 
-	// ── Settings ──────────────────────────────────────────────────────────
+	// ── Thumbnails ────────────────────────────────────────────────────────────────
+	mux.HandleFunc("POST /api/admin/documents/{id}/thumbnail",        s.requireAdmin(s.handleGenerateThumbnail))
+	mux.HandleFunc("POST /api/admin/documents/{id}/thumbnail/upload", s.requireAdmin(s.handleUploadThumbnail))
+	mux.HandleFunc("DELETE /api/admin/documents/{id}/thumbnail",      s.requireAdmin(s.handleDeleteThumbnail))
+	mux.HandleFunc("POST /api/admin/thumbnails/batch",                s.requireAdmin(s.handleBatchGenerateThumbnails))
+
+		// ── Settings ──────────────────────────────────────────────────────────
 	mux.HandleFunc("GET /api/admin/settings",           s.requireAdmin(s.handleGetSettings))
 	mux.HandleFunc("PUT /api/admin/settings",           s.requireAdmin(s.handleSaveSettings))
 	mux.HandleFunc("POST /api/admin/settings/test-ai",  s.requireAdmin(s.handleTestAI))

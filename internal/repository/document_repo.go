@@ -24,7 +24,7 @@ func NewDocumentRepo(db *sql.DB) *DocumentRepo {
 // Always alias the documents table as "d" and document_locks as "dl".
 const selectDocCols = `d.id, d.title, d.type, d.cat_id,
   COALESCE(d.sub_cat_id,''), COALESCE(d.file_path,''), COALESCE(d.content,''),
-  COALESCE(d.summary,''), COALESCE(d.cover_path,''),
+  COALESCE(d.summary,''), COALESCE(d.cover_path,''), COALESCE(d.thumbnail_source,'svg'),
   d.tags, d.views, d.read_time, d.is_saved, d.author, d.created_at, d.updated_at,
   COALESCE(dl.is_locked,1), COALESCE(dl.preview_lines,5)`
 
@@ -36,7 +36,7 @@ func scanDocument(rows interface {
 	var isSaved, isLocked, previewLines int
 	if err := rows.Scan(
 		&d.ID, &d.Title, &d.Type, &d.CatID, &d.SubCatID,
-		&d.FilePath, &d.Content, &d.Summary, &d.CoverPath,
+		&d.FilePath, &d.Content, &d.Summary, &d.CoverPath, &d.ThumbnailSource,
 		&tagsJSON, &d.Views, &d.ReadTime, &isSaved,
 		&d.Author, &d.CreatedAt, &d.UpdatedAt,
 		&isLocked, &previewLines,
@@ -249,7 +249,7 @@ func (r *DocumentRepo) SearchDocuments(query string) ([]models.SearchResult, err
 		var isSaved, isLocked, previewLines int
 		if err := rows.Scan(
 			&sr.ID, &sr.Title, &sr.Type, &sr.CatID, &sr.SubCatID,
-			&sr.FilePath, &sr.Content, &sr.Summary, &sr.CoverPath,
+			&sr.FilePath, &sr.Content, &sr.Summary, &sr.CoverPath, &sr.ThumbnailSource,
 			&tagsJSON, &sr.Views, &sr.ReadTime, &isSaved,
 			&sr.Author, &sr.CreatedAt, &sr.UpdatedAt,
 			&isLocked, &previewLines, &sr.Snippet,
@@ -329,4 +329,37 @@ func (r *DocumentRepo) GetDashboardStats() (models.DashboardStats, error) {
 func (r *DocumentRepo) RebuildFTS() error {
 	_, err := r.db.Exec("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')")
 	return err
+}
+
+func (r *DocumentRepo) UpdateCoverPath(id, coverPath, source string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(
+		"UPDATE documents SET cover_path=?, thumbnail_source=?, updated_at=? WHERE id=?",
+		coverPath, source, now, id,
+	)
+	return err
+}
+
+func (r *DocumentRepo) GetDocsNeedingThumbnail() ([]models.Document, error) {
+	rows, err := r.db.Query(
+		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id
+		WHERE (d.cover_path IS NULL OR d.cover_path = '' OR d.thumbnail_source = 'svg' OR d.thumbnail_source = '')
+		ORDER BY d.created_at DESC LIMIT 50`, selectDocCols),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var docs []models.Document
+	for rows.Next() {
+		var d models.Document
+		if err := scanDocument(rows, &d); err != nil {
+			return nil, err
+		}
+		docs = append(docs, d)
+	}
+	if docs == nil {
+		docs = []models.Document{}
+	}
+	return docs, rows.Err()
 }

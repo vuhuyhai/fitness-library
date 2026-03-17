@@ -8,6 +8,7 @@ export interface Document {
   content: string
   summary: string
   cover_path: string
+  thumbnail_source: string
   tags: string[]
   views: number
   read_time: number
