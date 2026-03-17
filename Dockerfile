@@ -10,7 +10,6 @@ RUN npm run build
 FROM golang:1.25-alpine AS server
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o fitness-server ./cmd/server
 
