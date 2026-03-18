@@ -1,9 +1,9 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { motion, AnimatePresence } from 'framer-motion'
 import './style.css'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { isLoggedIn, clearToken } from './lib/auth'
+import { isWails } from './lib/wailsApi'
 import AppSplashScreen from './shared/components/AppSplashScreen'
 import AdminLoginModal from './shared/components/AdminLoginModal'
 
@@ -19,8 +19,8 @@ function Root() {
   useEffect(() => {
     // Clean up old role key from previous version
     localStorage.removeItem('fitness-library-role')
-    // Determine initial shell from JWT validity
-    setShell(isLoggedIn() ? 'admin' : 'user')
+    // Wails desktop always goes to user first (no JWT); web checks JWT
+    setShell((!isWails && isLoggedIn()) ? 'admin' : 'user')
   }, [])
 
   function handleSwitchToUser() {
@@ -33,7 +33,12 @@ function Root() {
   }
 
   function handleRequestAdmin() {
-    // JWT still valid → switch directly (no re-login needed)
+    if (isWails) {
+      // Desktop: switch directly, no password needed
+      setShell('admin')
+      return
+    }
+    // Web: JWT still valid → switch directly, else prompt login
     if (isLoggedIn()) {
       setShell('admin')
     } else {
@@ -46,46 +51,19 @@ function Root() {
     setShell('admin')
   }
 
+  if (shell === 'loading') {
+    return <AppSplashScreen />
+  }
+
   return (
     <>
-      <AnimatePresence mode="wait">
-        {shell === 'loading' ? (
-          <motion.div key="splash" className="h-screen">
-            <AppSplashScreen />
-          </motion.div>
-        ) : shell === 'admin' ? (
-          <motion.div
-            key="admin"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="h-screen"
-          >
-            <Suspense fallback={<AppSplashScreen />}>
-              <AdminApp
-                onSwitchToUser={handleSwitchToUser}
-                onLogout={handleLogout}
-              />
-            </Suspense>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="user"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="h-screen"
-          >
-            <Suspense fallback={<AppSplashScreen />}>
-              <UserApp onRequestAdmin={handleRequestAdmin} />
-            </Suspense>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Suspense fallback={<AppSplashScreen />}>
+        {shell === 'admin'
+          ? <AdminApp onSwitchToUser={handleSwitchToUser} onLogout={handleLogout} />
+          : <UserApp  onRequestAdmin={handleRequestAdmin} />
+        }
+      </Suspense>
 
-      {/* Login modal lives outside shell so it survives shell transitions */}
       <AdminLoginModal
         isOpen={loginModalOpen}
         onClose={() => setLogin(false)}

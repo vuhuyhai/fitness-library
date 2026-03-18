@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ShieldCheck, Eye, EyeOff, X } from 'lucide-react'
 import { login } from '../../lib/httpApi'
 import { setToken } from '../../lib/auth'
-import { isWails } from '../../lib/wailsApi'
 
 const LOCK_KEY  = 'fl_admin_lock'
 const FAIL_KEY  = 'fl_admin_fails'
@@ -30,9 +29,7 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Wails desktop: no password needed — switch directly
   useEffect(() => {
-    if (isOpen && isWails) { onSuccess(); return }
     if (isOpen) {
       setPassword(''); setHasError(false); setShowPwd(false)
       // Check lock
