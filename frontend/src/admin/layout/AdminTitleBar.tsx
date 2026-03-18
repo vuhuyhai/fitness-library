@@ -1,12 +1,12 @@
-import { Minus, Square, X, Dumbbell, Menu, ShieldCheck } from 'lucide-react'
+import { Minus, Square, X, Dumbbell, Menu, ShieldCheck, UserRound } from 'lucide-react'
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../lib/events'
 import { useUIStore } from '../../store/useUIStore'
 
 interface Props {
-  onSwitchToUser: () => void
+  onClearRole: () => void
 }
 
-export default function AdminTitleBar({ onSwitchToUser }: Props) {
+export default function AdminTitleBar({ onClearRole }: Props) {
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
   return (
@@ -33,13 +33,14 @@ export default function AdminTitleBar({ onSwitchToUser }: Props) {
       </div>
 
       <div className="flex items-center h-full no-drag gap-1 pr-1">
-        {/* Switch to user view */}
+        {/* Switch role */}
         <button
-          onClick={onSwitchToUser}
-          title="Chuyển sang giao diện Độc Giả"
+          onClick={onClearRole}
+          title="Đổi vai trò"
           className="flex items-center gap-1 px-2 h-6 text-[10px] text-fg-muted hover:text-fg-primary border border-border/50 rounded hover:bg-surface-3 transition-colors"
         >
-          Xem thư viện
+          <UserRound className="w-3 h-3" />
+          Đổi vai trò
         </button>
 
         <button

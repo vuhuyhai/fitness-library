@@ -1,12 +1,12 @@
-import { Minus, Square, X, Dumbbell, Menu } from 'lucide-react'
+import { Minus, Square, X, Dumbbell, Menu, UserRound } from 'lucide-react'
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../../lib/events'
 import { useUIStore } from '../../store/useUIStore'
 
 interface Props {
-  onRequestAdmin: () => void
+  onClearRole: () => void
 }
 
-export default function UserTitleBar({ onRequestAdmin }: Props) {
+export default function UserTitleBar({ onClearRole }: Props) {
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
   return (
@@ -28,11 +28,12 @@ export default function UserTitleBar({ onRequestAdmin }: Props) {
 
       <div className="flex items-center h-full no-drag gap-1 pr-1">
         <button
-          onClick={onRequestAdmin}
-          title="Đăng nhập quản trị"
+          onClick={onClearRole}
+          title="Đổi vai trò"
           className="flex items-center gap-1 px-2 h-6 text-[10px] text-fg-muted hover:text-fg-primary border border-border/50 rounded hover:bg-surface-3 transition-colors"
         >
-          Quản trị
+          <UserRound className="w-3 h-3" />
+          Đổi vai trò
         </button>
 
         <button onClick={WindowMinimise} aria-label="Thu nhỏ"

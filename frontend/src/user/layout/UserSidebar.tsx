@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  Home, BookOpen, Bookmark, TrendingUp, Sun, Moon, ShieldCheck,
+  Home, BookOpen, Bookmark, TrendingUp, Sun, Moon, UserRound,
 } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useUIStore } from '../../store/useUIStore'
@@ -15,10 +15,10 @@ const NAV_LINKS = [
 const ACTIVE_GREEN = '#16a34a'
 
 interface Props {
-  onRequestAdmin: () => void
+  onClearRole: () => void
 }
 
-export default function UserSidebar({ onRequestAdmin }: Props) {
+export default function UserSidebar({ onClearRole }: Props) {
   const { theme, toggle }                           = useTheme()
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
@@ -106,14 +106,14 @@ export default function UserSidebar({ onRequestAdmin }: Props) {
           }
         </button>
 
-        {/* Admin entry point — low profile, not obvious to regular users */}
+        {/* Switch role */}
         <button
-          onClick={onRequestAdmin}
-          title="Quản trị"
-          className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-surface-3 hover:text-primary transition-colors text-xs justify-center lg:justify-start"
+          onClick={onClearRole}
+          title="Đổi vai trò"
+          className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs justify-center lg:justify-start"
         >
-          <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="hidden lg:block">Quản trị</span>
+          <UserRound className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden lg:block">Đổi vai trò</span>
         </button>
       </div>
     </aside>

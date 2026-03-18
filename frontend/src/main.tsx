@@ -1,80 +1,51 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react'
+import React, { lazy, Suspense, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './style.css'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { isLoggedIn, clearToken } from './lib/auth'
-import { isWails } from './lib/wailsApi'
-import AppSplashScreen from './shared/components/AppSplashScreen'
-import AdminLoginModal from './shared/components/AdminLoginModal'
+import RoleSelector from './RoleSelector'
 
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 const UserApp  = lazy(() => import('./user/UserApp'))
 
-type Shell = 'admin' | 'user' | 'loading'
+type Role = 'admin' | 'user' | null
 
-function Root() {
-  const [shell, setShell]          = useState<Shell>('loading')
-  const [loginModalOpen, setLogin] = useState(false)
-
-  useEffect(() => {
-    // Clean up old role key from previous version
-    localStorage.removeItem('fitness-library-role')
-    // Wails desktop always goes to user first (no JWT); web checks JWT
-    setShell((!isWails && isLoggedIn()) ? 'admin' : 'user')
-  }, [])
-
-  function handleSwitchToUser() {
-    setShell('user')
-  }
-
-  function handleLogout() {
-    clearToken()
-    setShell('user')
-  }
-
-  function handleRequestAdmin() {
-    if (isWails) {
-      // Desktop: switch directly, no password needed
-      setShell('admin')
-      return
-    }
-    // Web: JWT still valid → switch directly, else prompt login
-    if (isLoggedIn()) {
-      setShell('admin')
-    } else {
-      setLogin(true)
-    }
-  }
-
-  function handleLoginSuccess() {
-    setLogin(false)
-    setShell('admin')
-  }
-
-  if (shell === 'loading') {
-    return <AppSplashScreen />
-  }
-
+function Spinner() {
   return (
-    <>
-      <Suspense fallback={<AppSplashScreen />}>
-        {shell === 'admin'
-          ? <AdminApp onSwitchToUser={handleSwitchToUser} onLogout={handleLogout} />
-          : <UserApp  onRequestAdmin={handleRequestAdmin} />
-        }
-      </Suspense>
-
-      <AdminLoginModal
-        isOpen={loginModalOpen}
-        onClose={() => setLogin(false)}
-        onSuccess={handleLoginSuccess}
-      />
-    </>
+    <div className="flex h-screen items-center justify-center">
+      <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
   )
 }
 
-const container = document.getElementById('root')!
-createRoot(container).render(
+function Root() {
+  const [role, setRole] = useState<Role>(() => {
+    const saved = localStorage.getItem('fitness-library-role')
+    return (saved === 'admin' || saved === 'user') ? saved : null
+  })
+
+  function handleSelect(r: 'admin' | 'user', remember: boolean) {
+    if (remember) localStorage.setItem('fitness-library-role', r)
+    setRole(r)
+  }
+
+  function handleClearRole() {
+    localStorage.removeItem('fitness-library-role')
+    setRole(null)
+  }
+
+  if (role === null) return <RoleSelector onSelect={handleSelect} />
+
+  return (
+    <Suspense fallback={<Spinner />}>
+      {role === 'admin'
+        ? <AdminApp onClearRole={handleClearRole} />
+        : <UserApp  onClearRole={handleClearRole} />
+      }
+    </Suspense>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <Root />

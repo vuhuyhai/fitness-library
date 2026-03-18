@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Library, FilePlus, Upload, Settings,
   FolderTree, Sparkles, Wifi, WifiOff, ShieldCheck,
-  Sun, Moon, BookOpen, LogOut,
+  Sun, Moon, UserRound,
 } from 'lucide-react'
 import { api } from '../../lib/wailsApi'
 import { useLibraryStore } from '../../store/useLibraryStore'
@@ -20,11 +20,10 @@ const NAV_LINKS = [
 ]
 
 interface Props {
-  onSwitchToUser: () => void
-  onLogout: () => void
+  onClearRole: () => void
 }
 
-export default function AdminSidebar({ onSwitchToUser, onLogout }: Props) {
+export default function AdminSidebar({ onClearRole }: Props) {
   const { setCategories } = useLibraryStore()
   const { aiStatus, settings } = useSettingsStore()
   const { theme, toggle }      = useTheme()
@@ -173,37 +172,15 @@ export default function AdminSidebar({ onSwitchToUser, onLogout }: Props) {
           )}
         </div>
 
-        {/* Admin identity — desktop only */}
-        <div className="hidden lg:flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-[9px] text-white font-bold">VH</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-fg-primary leading-none">Vũ Hải</p>
-            <p className="text-[10px] text-fg-muted">Quản trị viên</p>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="border-t border-sidebar-border pt-2 space-y-0.5">
-          <button
-            onClick={onSwitchToUser}
-            title="Chuyển sang giao diện người dùng"
-            className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs justify-center lg:justify-start"
-          >
-            <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden lg:block">← Xem thư viện</span>
-          </button>
-
-          <button
-            onClick={onLogout}
-            title="Đăng xuất khỏi trang quản trị"
-            className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-danger/10 hover:text-danger transition-colors text-xs justify-center lg:justify-start"
-          >
-            <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden lg:block">Đăng xuất</span>
-          </button>
-        </div>
+        {/* Switch role button */}
+        <button
+          onClick={onClearRole}
+          title="Đổi vai trò"
+          className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs justify-center lg:justify-start"
+        >
+          <UserRound className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden lg:block">Đổi vai trò</span>
+        </button>
       </div>
     </aside>
   )

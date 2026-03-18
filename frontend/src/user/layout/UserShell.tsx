@@ -10,10 +10,10 @@ import UserViewerPanel from '../pages/UserViewerPanel'
 
 interface Props {
   children: ReactNode
-  onRequestAdmin: () => void
+  onClearRole: () => void
 }
 
-export default function UserShell({ children, onRequestAdmin }: Props) {
+export default function UserShell({ children, onClearRole }: Props) {
   const { closeViewer, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
   const { setUnlockedDocs } = useUserProgressStore()
 
@@ -55,7 +55,7 @@ export default function UserShell({ children, onRequestAdmin }: Props) {
         .user-shell canvas { user-select: none; }
       `}</style>
 
-      <UserTitleBar onRequestAdmin={onRequestAdmin} />
+      <UserTitleBar onClearRole={onClearRole} />
 
       <div className="flex flex-1 overflow-hidden user-shell">
         {mobileSidebarOpen && (
@@ -66,7 +66,7 @@ export default function UserShell({ children, onRequestAdmin }: Props) {
           />
         )}
 
-        <UserSidebar onRequestAdmin={onRequestAdmin} />
+        <UserSidebar onClearRole={onClearRole} />
 
         <main className="flex-1 overflow-hidden relative flex flex-col">
           <div className="flex-1 overflow-hidden flex flex-col">

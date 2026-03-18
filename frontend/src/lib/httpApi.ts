@@ -43,7 +43,7 @@ function authHeaders(): HeadersInit {
 function handleUnauthorized(res: Response) {
   if (res.status === 401) {
     clearToken()
-    window.location.reload()
+    window.dispatchEvent(new CustomEvent('fitness-unauthorized'))
   }
 }
 
