@@ -116,7 +116,7 @@ func (a *App) UpdateDocument(id string, updates models.UpdateDocumentInput) erro
 }
 
 func (a *App) DeleteDocument(id string) error {
-	return a.docRepo.DeleteDocument(id)
+	return a.docRepo.SoftDelete(id, models.DeleteOptions{DeleteFile: true, DeleteRelated: true})
 }
 
 func (a *App) SearchDocuments(query string) ([]models.SearchResult, error) {

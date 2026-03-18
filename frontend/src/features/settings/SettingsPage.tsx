@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, RefreshCw, Folder, Database, ExternalLink, Plus, Trash2, Download, Bot, KeyRound } from 'lucide-react'
+import { Eye, EyeOff, RefreshCw, Folder, Database, ExternalLink, Plus, Trash2, Download, Bot, KeyRound, HardDrive, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, isWails } from '../../lib/wailsApi'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useLibraryStore } from '../../store/useLibraryStore'
-import type { Category } from '../../types'
+import type { Category, StorageInfo } from '../../types'
 
 type AIProvider = 'claude' | 'gemini' | 'openai'
 
@@ -54,6 +54,8 @@ export default function SettingsPage() {
   const [changingPwd, setChangingPwd] = useState(false)
   const [testing, setTesting]         = useState(false)
   const [dbStats, setDbStats]         = useState<Record<string, unknown> | null>(null)
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null)
+  const [backingUp, setBackingUp]     = useState(false)
   const [appVersion, setAppVersion]   = useState('1.0.0')
   const { setSettings, setAiStatus }  = useSettingsStore()
 
@@ -66,6 +68,7 @@ export default function SettingsPage() {
   useEffect(() => {
     api.getSettings().then(setLocalSettings).catch(console.error)
     api.getDBStats().then(setDbStats).catch(console.error)
+    api.getStorageInfo().then(setStorageInfo).catch(console.error)
     api.getAppVersion().then(setAppVersion).catch(console.error)
     if (categories.length === 0) {
       api.getCategories().then(setCategories).catch(console.error)
@@ -157,6 +160,24 @@ export default function SettingsPage() {
     } finally {
       setChangingPwd(false)
     }
+  }
+
+  async function backupNow() {
+    setBackingUp(true)
+    try {
+      const result = await api.backupDatabase()
+      toast.success(`Backup tạo thành công: ${result.path.split(/[\\/]/).pop()}`)
+    } catch (e) {
+      toast.error('Lỗi backup: ' + String(e))
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  function fmtBytes(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
 
   async function exportJSON() {
@@ -600,6 +621,64 @@ export default function SettingsPage() {
             </div>
           </Section>
         )}
+
+        {/* ── Lưu Trữ Dữ Liệu ── */}
+        <Section accent="#0891b2" title="Lưu Trữ Dữ Liệu">
+          {storageInfo ? (
+            <div className="space-y-3">
+              {/* Storage overview grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Database', icon: <Database className="w-3.5 h-3.5" />, bytes: storageInfo.db_bytes, count: null },
+                  { label: 'Thumbnails', icon: <HardDrive className="w-3.5 h-3.5" />, bytes: storageInfo.thumb_bytes, count: storageInfo.thumb_count },
+                  { label: 'File gốc', icon: <Folder className="w-3.5 h-3.5" />, bytes: storageInfo.upload_bytes, count: storageInfo.upload_count },
+                  { label: 'Backups', icon: <Shield className="w-3.5 h-3.5" />, bytes: storageInfo.backup_bytes, count: storageInfo.backup_count },
+                ].map((item) => (
+                  <div key={item.label} className="bg-surface-2 rounded-lg border border-border p-3 space-y-1">
+                    <div className="flex items-center gap-1.5 text-fg-secondary text-xs font-medium">
+                      {item.icon}
+                      {item.label}
+                    </div>
+                    <p className="text-sm font-bold text-fg-primary">{fmtBytes(item.bytes)}</p>
+                    {item.count !== null && (
+                      <p className="text-[11px] text-fg-muted">{item.count} file</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Data dir path */}
+              <div className="bg-surface-2 rounded-lg border border-border p-3 space-y-1">
+                <p className="text-xs font-medium text-fg-secondary">Thư mục dữ liệu</p>
+                <p className="text-[11px] text-fg-muted font-mono break-all bg-surface-3 px-2 py-1 rounded">
+                  {storageInfo.data_dir}
+                </p>
+                <p className="text-[11px] text-fg-muted">
+                  Schema version: <span className="text-fg-primary font-medium">{storageInfo.schema_version}</span>
+                </p>
+              </div>
+
+              {/* Backup action */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={backupNow}
+                  disabled={backingUp}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-info/10 hover:bg-info/20 text-info border border-info/30 text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Shield className={`w-3.5 h-3.5 ${backingUp ? 'animate-pulse' : ''}`} />
+                  {backingUp ? 'Đang tạo backup...' : 'Tạo Backup Ngay'}
+                </button>
+                <p className="text-[11px] text-fg-muted">Giữ tối đa 5 bản backup gần nhất</p>
+              </div>
+
+              <p className="text-[11px] text-fg-muted bg-surface-2 border border-border rounded px-3 py-2">
+                Dữ liệu được lưu trong thư mục trên. Để giữ nguyên sau khi update/deploy, set biến môi trường <code className="bg-surface-3 px-1 rounded font-mono">FITNESS_LIBRARY_DATA_DIR</code> trỏ đến Volume mount.
+              </p>
+            </div>
+          ) : (
+            <div className="text-xs text-fg-muted">Đang tải...</div>
+          )}
+        </Section>
 
         {/* ── Debug & Bảo Trì ── */}
         <Section accent="#6b7280" title="Debug & Bảo Trì">

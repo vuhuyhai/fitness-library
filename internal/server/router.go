@@ -34,6 +34,8 @@ func (s *Server) setupRoutes() http.Handler {
 	mux.HandleFunc("POST /api/admin/undo-delete",                    s.requireAdmin(s.handleUndoDelete))
 	mux.HandleFunc("GET /api/admin/delete-logs",                     s.requireAdmin(s.handleGetDeleteLogs))
 	mux.HandleFunc("GET /api/admin/stats/db",                        s.requireAdmin(s.handleGetDBStats))
+	mux.HandleFunc("GET /api/admin/storage",                         s.requireAdmin(s.handleGetStorageInfo))
+	mux.HandleFunc("POST /api/admin/backup",                         s.requireAdmin(s.handleBackupDatabase))
 	mux.HandleFunc("POST /api/admin/fts/rebuild",                    s.requireAdmin(s.handleRebuildFTS))
 
 	// ── Categories ────────────────────────────────────────────────────────

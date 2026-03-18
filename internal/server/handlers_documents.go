@@ -3,10 +3,12 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
+	"fitness-library/internal/db"
 	"fitness-library/internal/models"
 
 	"github.com/google/uuid"
@@ -79,9 +81,46 @@ func (s *Server) handleGetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetDBStats(w http.ResponseWriter, r *http.Request) {
-	stats := s.catRepo.GetDBStats(s.dataDir + "/fitness.db")
+	stats := s.catRepo.GetDBStats(filepath.Join(s.dataDir, "fitness.db"))
 	stats["ffmpeg_available"] = s.thumbSvc.HasFFmpeg()
 	writeOK(w, stats)
+}
+
+func (s *Server) handleGetStorageInfo(w http.ResponseWriter, r *http.Request) {
+	thumbDir := filepath.Join(s.dataDir, "thumbnails")
+	backupDir := filepath.Join(s.dataDir, "backups")
+
+	thumbCount, thumbBytes := db.DirStats(thumbDir)
+	uploadCount, uploadBytes := db.DirStats(s.uploadDir)
+	backupCount, backupBytes := db.DirStats(backupDir)
+
+	dbPath := filepath.Join(s.dataDir, "fitness.db")
+	var dbBytes int64
+	if info, err := os.Stat(dbPath); err == nil {
+		dbBytes = info.Size()
+	}
+
+	writeOK(w, map[string]interface{}{
+		"db_path":        dbPath,
+		"db_bytes":       dbBytes,
+		"thumb_count":    thumbCount,
+		"thumb_bytes":    thumbBytes,
+		"upload_count":   uploadCount,
+		"upload_bytes":   uploadBytes,
+		"backup_count":   backupCount,
+		"backup_bytes":   backupBytes,
+		"schema_version": db.SchemaVersion(),
+		"data_dir":       s.dataDir,
+	})
+}
+
+func (s *Server) handleBackupDatabase(w http.ResponseWriter, r *http.Request) {
+	path, err := db.BackupNow()
+	if err != nil {
+		writeError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeOK(w, map[string]string{"path": path})
 }
 
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {

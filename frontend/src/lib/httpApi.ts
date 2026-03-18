@@ -22,6 +22,7 @@ import type {
   DeletePreview,
   DeleteResult,
   DeleteLog,
+  StorageInfo,
 } from '../types'
 import { getToken, clearToken } from './auth'
 
@@ -262,6 +263,10 @@ export const httpApi = {
   getDataDir:      (): Promise<string> => Promise.resolve(''),
   getDBStats:      (): Promise<Record<string, unknown>> =>
     get('/api/admin/stats/db'),
+  getStorageInfo:  (): Promise<StorageInfo> =>
+    get('/api/admin/storage'),
+  backupDatabase:  (): Promise<{ path: string }> =>
+    post('/api/admin/backup'),
   clearThumbnailCache: (): Promise<void> => Promise.resolve(),
   getLocalFileURL: (absPath: string): Promise<string> => {
     // Encode identical to the Go server's LocalFileURL

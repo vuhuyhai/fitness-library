@@ -231,6 +231,20 @@ export interface DeleteLog {
   deletedAt: string
 }
 
+/** Storage usage breakdown */
+export interface StorageInfo {
+  db_path: string
+  db_bytes: number
+  thumb_count: number
+  thumb_bytes: number
+  upload_count: number
+  upload_bytes: number
+  backup_count: number
+  backup_bytes: number
+  schema_version: number
+  data_dir: string
+}
+
 /** AI explanation of a fitness term */
 export interface TermExplanation {
   term: string

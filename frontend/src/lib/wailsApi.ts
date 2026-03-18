@@ -27,6 +27,7 @@ import type {
   DeletePreview,
   DeleteResult,
   DeleteLog,
+  StorageInfo,
 } from '../types'
 import { httpApi } from './httpApi'
 
@@ -125,6 +126,10 @@ const _wailsImpl = {
     go().GetDataDir(),
   getDBStats: (): Promise<Record<string, unknown>> =>
     go().GetDBStats(),
+  getStorageInfo: (): Promise<StorageInfo> =>
+    go().GetStorageInfo().catch(() => ({ db_path: '', db_bytes: 0, thumb_count: 0, thumb_bytes: 0, upload_count: 0, upload_bytes: 0, backup_count: 0, backup_bytes: 0, schema_version: 0, data_dir: '' })),
+  backupDatabase: (): Promise<{ path: string }> =>
+    go().BackupDatabase().catch(() => ({ path: '' })),
   clearThumbnailCache: (): Promise<void> =>
     go().ClearThumbnailCache(),
   getLocalFileURL: (absPath: string): Promise<string> =>
