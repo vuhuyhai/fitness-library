@@ -18,6 +18,10 @@ import type {
   ChatMessage,
   ChatResponse,
   TermExplanation,
+  DeleteOptions,
+  DeletePreview,
+  DeleteResult,
+  DeleteLog,
 } from '../types'
 import { getToken, clearToken } from './auth'
 
@@ -138,8 +142,31 @@ export const httpApi = {
     post('/api/admin/documents', input),
   updateDocument: (id: string, updates: UpdateDocumentInput): Promise<void> =>
     put(`/api/admin/documents/${id}`, updates),
-  deleteDocument: (id: string): Promise<void> =>
-    del(`/api/admin/documents/${id}`),
+  deleteDocument: (id: string, opts?: DeleteOptions): Promise<DeleteResult> => {
+    const token = getToken()
+    return fetch(url(`/api/admin/documents/${id}`), {
+      method: 'DELETE',
+      headers: token
+        ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+        : { 'Content-Type': 'application/json' },
+      body: opts ? JSON.stringify(opts) : undefined,
+    }).then(async (res) => {
+      if (!res.ok) {
+        handleUnauthorized(res)
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error ?? res.statusText)
+      }
+      return res.json()
+    })
+  },
+  batchDeleteDocuments: (ids: string[], opts: DeleteOptions): Promise<DeleteResult> =>
+    post('/api/admin/documents/batch-delete', { ids, opts }),
+  undoDelete: (token: string): Promise<{ docId: string }> =>
+    post('/api/admin/undo-delete', { token }),
+  getDeletePreview: (id: string): Promise<DeletePreview> =>
+    get(`/api/admin/documents/${id}/delete-preview`),
+  getDeleteLogs: (): Promise<DeleteLog[]> =>
+    get('/api/admin/delete-logs'),
   searchDocuments: (query: string): Promise<SearchResult[]> =>
     get(`/api/documents/search?q=${encodeURIComponent(query)}`),
   incrementViews: (id: string): Promise<void> =>

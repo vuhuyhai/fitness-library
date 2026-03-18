@@ -63,7 +63,7 @@ export default function AdminApp({ onClearRole }: Props) {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/library"   element={<LibraryPage />} />
+            <Route path="/library"   element={<LibraryPage isAdmin />} />
             <Route path="/add"       element={<AddDocPage />} />
             <Route path="/import"    element={<ImportPage />} />
             <Route path="/settings"  element={<SettingsPage />} />

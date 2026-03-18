@@ -195,6 +195,46 @@ type ChatResponse struct {
 	IsOnTopic bool     `json:"isOnTopic"`
 }
 
+// DeleteOptions controls what is cleaned up when a document is deleted.
+type DeleteOptions struct {
+	DeleteFile      bool `json:"deleteFile"`
+	DeleteThumbnail bool `json:"deleteThumbnail"`
+	DeleteRelated   bool `json:"deleteRelated"`
+}
+
+// DeletePreview holds impact info shown before confirming deletion.
+type DeletePreview struct {
+	DocID        string `json:"docId"`
+	Title        string `json:"title"`
+	FileSize     int64  `json:"fileSize"`
+	FilePath     string `json:"filePath"`
+	HasThumbnail bool   `json:"hasThumbnail"`
+	ReadCount    int    `json:"readCount"`
+	ShareCount   int    `json:"shareCount"`
+	UnlockCount  int    `json:"unlockCount"`
+	IsLocked     bool   `json:"isLocked"`
+}
+
+// DeleteResult is returned after initiating a soft-delete.
+type DeleteResult struct {
+	Success      bool   `json:"success"`
+	FreedBytes   int64  `json:"freedBytes"`
+	DeletedItems int    `json:"deletedItems"`
+	UndoToken    string `json:"undoToken"`
+	Message      string `json:"message"`
+}
+
+// DeleteLog is one entry in the delete audit trail.
+type DeleteLog struct {
+	ID         string `json:"id"`
+	DocID      string `json:"docId"`
+	DocTitle   string `json:"docTitle"`
+	DeletedBy  string `json:"deletedBy"`
+	FreedBytes int64  `json:"freedBytes"`
+	WasUndone  bool   `json:"wasUndone"`
+	DeletedAt  string `json:"deletedAt"`
+}
+
 // TermExplanation is the AI explanation of a fitness term.
 type TermExplanation struct {
 	Term         string   `json:"term"`

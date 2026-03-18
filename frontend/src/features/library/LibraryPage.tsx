@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
-import { LayoutGrid, List, Plus, SlidersHorizontal, BookOpen, RefreshCw } from 'lucide-react'
+import { LayoutGrid, List, Plus, SlidersHorizontal, BookOpen, RefreshCw, CheckSquare, Trash2, X, Square } from 'lucide-react'
 import { api } from '../../lib/wailsApi'
-import { toastError } from '../../lib/toast'
+import { toastError, toastSuccess } from '../../lib/toast'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { useUIStore } from '../../store/useUIStore'
 import { DocCardSkeleton, DocRowSkeleton } from '../../components/ui/Skeleton'
@@ -9,8 +9,14 @@ import CategoryTree from './CategoryTree'
 import DocumentCard from './DocumentCard'
 import DocumentList from './DocumentList'
 import TagFilterBar from './TagFilterBar'
-import type { Document, DocumentFilter } from '../../types'
+import DeleteConfirmModal from '../../admin/components/DeleteConfirmModal'
+import { showUndoToast } from '../../admin/components/UndoToast'
+import type { Document, DocumentFilter, DeleteOptions } from '../../types'
 import { useNavigate } from 'react-router-dom'
+
+interface Props {
+  isAdmin?: boolean
+}
 
 /** Minimum time (ms) to display skeleton to avoid flash */
 function useMinLoadingTime(isLoading: boolean, minMs = 300) {
@@ -33,16 +39,19 @@ const SORT_OPTIONS = [
   { value: 'read_time', label: 'Thời gian đọc'},
 ]
 
-export default function LibraryPage() {
+export default function LibraryPage({ isAdmin = false }: Props) {
   const {
-    documents, setDocuments, categories,
+    documents, setDocuments, categories, removeDocument, addDocument,
     activeCategory, activeTags, sortBy, setSortBy, quickFilter,
     isLoading, setLoading,
+    isSelectionMode, selectedDocIds, toggleSelectionMode, toggleSelectDoc,
+    selectAll, clearSelection,
   } = useLibraryStore()
   const { viewMode, setViewMode, searchQuery, setSearchQuery } = useUIStore()
   const showSkeleton = useMinLoadingTime(isLoading)
   const [searchResults, setSearchResults] = useState<Document[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const navigate = useNavigate()
   const searchTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -53,12 +62,31 @@ export default function LibraryPage() {
     return () => window.removeEventListener('toggle-view-mode', handler)
   }, [viewMode])
 
+  // Keyboard shortcuts in selection mode
+  useEffect(() => {
+    if (!isAdmin) return
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      if (inInput) return
+      if (e.key === 'Escape' && isSelectionMode) { clearSelection(); return }
+      if ((e.key === 'a' || e.key === 'A') && e.ctrlKey && isSelectionMode) {
+        e.preventDefault()
+        selectAll(filtered.map((d) => d.id))
+      }
+      if (e.key === 'Delete' && isSelectionMode && selectedDocIds.size > 0) {
+        setBatchDeleteOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isAdmin, isSelectionMode, selectedDocIds])
+
   // Fetch documents on filter change
   const fetchDocs = useCallback(async () => {
     setLoading(true)
     try {
       const isSaved = quickFilter === 'saved' ? true : undefined
-      // Quick-filter overrides sort
       let resolvedSort: 'date' | 'title' | 'views' =
         sortBy === 'read_time' ? 'date' : (sortBy as 'date' | 'title' | 'views')
       if (quickFilter === 'trending') resolvedSort = 'views'
@@ -117,108 +145,172 @@ export default function LibraryPage() {
     ? baseList.filter((d) => activeTags.every((t) => d.tags.includes(t)))
     : baseList
 
-  // All unique tags from current set
   const allTags = Array.from(new Set(documents.flatMap((d) => d.tags))).sort()
-
-  // Breadcrumb
   const activeCat = categories.find((c) => c.id === activeCategory)
+  const selectedIds = Array.from(selectedDocIds)
+  const allSelected = filtered.length > 0 && filtered.every((d) => selectedDocIds.has(d.id))
+
+  async function handleBatchDelete(opts: DeleteOptions) {
+    setBatchDeleteOpen(false)
+    const ids = selectedIds
+    const snapshots = filtered.filter((d) => ids.includes(d.id))
+    clearSelection()
+
+    // Optimistic removal
+    ids.forEach((id) => removeDocument(id))
+
+    try {
+      const result = await api.batchDeleteDocuments(ids, opts)
+      showUndoToast(`${ids.length} tài liệu`, result.undoToken, 30, async (token) => {
+        try {
+          await api.undoDelete(token)
+          snapshots.forEach((doc) => addDocument(doc))
+          toastSuccess(`Đã hoàn tác! ${ids.length} tài liệu được khôi phục.`)
+        } catch {
+          toastError('Không thể hoàn tác.')
+        }
+      })
+    } catch (e) {
+      snapshots.forEach((doc) => addDocument(doc))
+      toastError('Lỗi xóa hàng loạt: ' + String(e))
+    }
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Category sidebar inside content */}
       <CategoryTree />
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
         <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-surface flex-shrink-0">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-sm flex-1 min-w-0">
-            <span className="text-fg-muted">Thư Viện</span>
-            {activeCat && (
-              <>
-                <span className="text-fg-muted">/</span>
-                <span className="text-fg-primary font-medium truncate">{activeCat.name}</span>
-              </>
-            )}
-            {isSearchMode && (
-              <>
-                <span className="text-fg-muted">/</span>
-                <span className="text-fg-primary">Tìm kiếm: "{searchQuery}"</span>
-              </>
-            )}
-          </div>
-
-          {/* Search */}
-          <div className="relative flex-shrink-0">
-            <input
-              id="lib-search"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm... (/)"
-              aria-label="Tìm kiếm tài liệu"
-              className="w-56 bg-surface-3/60 border border-border/40 rounded-lg px-3 py-1.5 text-xs text-fg-primary placeholder-fg-muted focus:outline-none focus:border-border-focus transition-colors"
-            />
-            {isSearching && (
-              <RefreshCw className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-fg-muted animate-spin" />
-            )}
-            {searchQuery && !isSearching && (
+          {isAdmin && isSelectionMode ? (
+            /* Selection mode topbar */
+            <>
+              <span className="text-sm font-medium text-fg-primary flex-1">
+                {selectedDocIds.size} đã chọn
+              </span>
               <button
-                onClick={() => setSearchQuery('')}
-                aria-label="Xóa tìm kiếm"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg-primary text-xs"
+                onClick={() => allSelected ? clearSelection() : selectAll(filtered.map((d) => d.id))}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-fg-secondary hover:text-fg-primary hover:bg-surface-3 transition-colors"
               >
-                ✕
+                {allSelected ? <Square className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
+                {allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
               </button>
-            )}
-          </div>
+              <button
+                onClick={() => clearSelection()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-fg-secondary hover:text-fg-primary hover:bg-surface-3 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Thoát
+              </button>
+              <button
+                onClick={() => { if (selectedDocIds.size > 0) setBatchDeleteOpen(true) }}
+                disabled={selectedDocIds.size === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-danger hover:bg-danger/90 disabled:opacity-40 text-white font-semibold rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Xóa ({selectedDocIds.size})
+              </button>
+            </>
+          ) : (
+            /* Normal topbar */
+            <>
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-1.5 text-sm flex-1 min-w-0">
+                <span className="text-fg-muted">Thư Viện</span>
+                {activeCat && (
+                  <>
+                    <span className="text-fg-muted">/</span>
+                    <span className="text-fg-primary font-medium truncate">{activeCat.name}</span>
+                  </>
+                )}
+                {isSearchMode && (
+                  <>
+                    <span className="text-fg-muted">/</span>
+                    <span className="text-fg-primary">Tìm kiếm: "{searchQuery}"</span>
+                  </>
+                )}
+              </div>
 
-          {/* Sort */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-fg-muted" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              aria-label="Sắp xếp theo"
-              className="bg-surface-3/60 border border-border/40 rounded text-xs text-fg-secondary px-2 py-1.5 focus:outline-none cursor-pointer"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
+              {/* Search */}
+              <div className="relative flex-shrink-0">
+                <input
+                  id="lib-search"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm kiếm... (/)"
+                  aria-label="Tìm kiếm tài liệu"
+                  className="w-56 bg-surface-3/60 border border-border/40 rounded-lg px-3 py-1.5 text-xs text-fg-primary placeholder-fg-muted focus:outline-none focus:border-border-focus transition-colors"
+                />
+                {isSearching && (
+                  <RefreshCw className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-fg-muted animate-spin" />
+                )}
+                {searchQuery && !isSearching && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Xóa tìm kiếm"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg-primary text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
-          {/* View toggle */}
-          <div className="flex rounded-lg border border-border/50 overflow-hidden flex-shrink-0" role="group" aria-label="Chế độ hiển thị">
-            <button
-              onClick={() => setViewMode('grid')}
-              aria-label="Hiển thị lưới"
-              aria-pressed={viewMode === 'grid'}
-              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary-light text-primary' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-3'}`}
-              title="Lưới (G)"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              aria-label="Hiển thị danh sách"
-              aria-pressed={viewMode === 'list'}
-              className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary-light text-primary' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-3'}`}
-              title="Danh sách (G)"
-            >
-              <List className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              {/* Sort */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-fg-muted" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  aria-label="Sắp xếp theo"
+                  className="bg-surface-3/60 border border-border/40 rounded text-xs text-fg-secondary px-2 py-1.5 focus:outline-none cursor-pointer"
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Add button */}
-          <button
-            onClick={() => navigate('/add')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Thêm Tài Liệu
-          </button>
+              {/* View toggle */}
+              <div className="flex rounded-lg border border-border/50 overflow-hidden flex-shrink-0" role="group">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  aria-pressed={viewMode === 'grid'}
+                  className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary-light text-primary' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-3'}`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  aria-pressed={viewMode === 'list'}
+                  className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary-light text-primary' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-3'}`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Admin: select many button */}
+              {isAdmin && (
+                <button
+                  onClick={toggleSelectionMode}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-xs text-fg-secondary hover:text-fg-primary hover:bg-surface-3 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  Chọn nhiều
+                </button>
+              )}
+
+              {/* Add button */}
+              <button
+                onClick={() => navigate('/add')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Thêm Tài Liệu
+              </button>
+            </>
+          )}
         </div>
 
         {/* Tag filter */}
@@ -229,6 +321,7 @@ export default function LibraryPage() {
           <span className="text-xs text-fg-muted">
             {showSkeleton ? 'Đang tải...' : `${filtered.length} tài liệu`}
             {activeTags.length > 0 && ` · lọc theo ${activeTags.length} tag`}
+            {isSelectionMode && selectedDocIds.size > 0 && ` · đã chọn ${selectedDocIds.size}`}
           </span>
         </div>
 
@@ -248,7 +341,16 @@ export default function LibraryPage() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))'
             }}>
               {filtered.map((doc, i) => (
-                <DocumentCard key={doc.id} doc={doc} index={i} />
+                <DocumentCard
+                  key={doc.id}
+                  doc={doc}
+                  index={i}
+                  isAdmin={isAdmin}
+                  isSelectionMode={isSelectionMode}
+                  isSelected={selectedDocIds.has(doc.id)}
+                  onToggleSelect={toggleSelectDoc}
+                  onDeleted={removeDocument}
+                />
               ))}
             </div>
           ) : (
@@ -256,6 +358,14 @@ export default function LibraryPage() {
           )}
         </div>
       </div>
+
+      {/* Batch delete modal */}
+      <DeleteConfirmModal
+        isOpen={batchDeleteOpen}
+        docIds={selectedIds}
+        onConfirm={handleBatchDelete}
+        onCancel={() => setBatchDeleteOpen(false)}
+      />
     </div>
   )
 }

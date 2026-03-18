@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -85,10 +86,8 @@ func (r *DocumentRepo) GetDocuments(filter models.DocumentFilter) ([]models.Docu
 		args = append(args, "%"+filter.Tag+"%")
 	}
 
-	where := ""
-	if len(conds) > 0 {
-		where = "WHERE " + strings.Join(conds, " AND ")
-	}
+	conds = append(conds, "d.deleted_at IS NULL")
+	where := "WHERE " + strings.Join(conds, " AND ")
 
 	orderBy := "ORDER BY d.created_at DESC"
 	switch filter.SortBy {
@@ -132,7 +131,7 @@ func (r *DocumentRepo) GetDocuments(filter models.DocumentFilter) ([]models.Docu
 func (r *DocumentRepo) GetDocument(id string) (models.Document, error) {
 	var d models.Document
 	row := r.db.QueryRow(
-		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id WHERE d.id = ?`, selectDocCols),
+		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id WHERE d.id = ? AND d.deleted_at IS NULL`, selectDocCols),
 		id,
 	)
 	if err := scanDocument(row, &d); err != nil {
@@ -215,9 +214,176 @@ func (r *DocumentRepo) UpdateAIFields(id string, tags []string, summary string, 
 	return err
 }
 
-func (r *DocumentRepo) DeleteDocument(id string) error {
-	_, err := r.db.Exec("DELETE FROM documents WHERE id = ?", id)
+// GetDeletePreview returns stats about a document before deleting it.
+func (r *DocumentRepo) GetDeletePreview(id string) (models.DeletePreview, error) {
+	p := models.DeletePreview{DocID: id}
+
+	// Get doc info (allow deleted docs too for preview)
+	var filePath, title, coverPath string
+	var isLocked int
+	r.db.QueryRow(`SELECT title, COALESCE(file_path,''), COALESCE(cover_path,''),
+		COALESCE((SELECT is_locked FROM document_locks WHERE doc_id=?),1)
+		FROM documents WHERE id=?`, id, id).
+		Scan(&title, &filePath, &coverPath, &isLocked) //nolint:errcheck
+	p.Title = title
+	p.FilePath = filePath
+	p.IsLocked = isLocked == 1
+	p.HasThumbnail = coverPath != ""
+
+	if filePath != "" {
+		if fi, err := os.Stat(filePath); err == nil {
+			p.FileSize = fi.Size()
+		}
+	}
+
+	r.db.QueryRow(`SELECT COUNT(*) FROM reading_progress WHERE doc_id=?`, id).Scan(&p.ReadCount)       //nolint:errcheck
+	r.db.QueryRow(`SELECT COUNT(*) FROM share_events WHERE doc_id=?`, id).Scan(&p.ShareCount)          //nolint:errcheck
+	r.db.QueryRow(`SELECT COUNT(*) FROM user_unlocks WHERE doc_id=?`, id).Scan(&p.UnlockCount)         //nolint:errcheck
+	return p, nil
+}
+
+// SoftDelete marks a document as deleted (30-second undo window).
+func (r *DocumentRepo) SoftDelete(id string, opts models.DeleteOptions) error {
+	optsJSON, _ := json.Marshal(opts)
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(
+		"UPDATE documents SET deleted_at=?, deleted_opts=? WHERE id=?",
+		now, string(optsJSON), id,
+	)
 	return err
+}
+
+// InsertUndoToken stores a cancellation token for the 30s undo window.
+func (r *DocumentRepo) InsertUndoToken(token, docID string, expiresAt time.Time) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(
+		`INSERT INTO undo_queue (token, doc_id, opts_json, created_at, expires_at) VALUES (?,?,?,?,?)`,
+		token, docID, "{}", now, expiresAt.UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+// UndoTokenExists checks if a token is still valid (not expired, not consumed).
+func (r *DocumentRepo) UndoTokenExists(token string) (string, bool) {
+	var docID, expiresAt string
+	err := r.db.QueryRow(
+		`SELECT doc_id, expires_at FROM undo_queue WHERE token=?`, token,
+	).Scan(&docID, &expiresAt)
+	if err != nil {
+		return "", false
+	}
+	exp, err := time.Parse(time.RFC3339, expiresAt)
+	if err != nil || time.Now().After(exp) {
+		return docID, false
+	}
+	return docID, true
+}
+
+// ConsumeUndoToken removes the token (used on undo or after purge).
+func (r *DocumentRepo) ConsumeUndoToken(token string) error {
+	_, err := r.db.Exec("DELETE FROM undo_queue WHERE token=?", token)
+	return err
+}
+
+// RestoreDocument clears deleted_at to undo a soft-delete.
+func (r *DocumentRepo) RestoreDocument(id string) error {
+	_, err := r.db.Exec("UPDATE documents SET deleted_at=NULL, deleted_opts=NULL WHERE id=?", id)
+	return err
+}
+
+// PurgeDocument hard-deletes a soft-deleted document and optionally removes
+// its file, thumbnail, and related records.
+func (r *DocumentRepo) PurgeDocument(id string, opts models.DeleteOptions, thumbDir string) (int64, error) {
+	// Fetch file path before deleting
+	var filePath, coverPath string
+	r.db.QueryRow(`SELECT COALESCE(file_path,''), COALESCE(cover_path,'') FROM documents WHERE id=?`, id).
+		Scan(&filePath, &coverPath) //nolint:errcheck
+
+	var freedBytes int64
+
+	if opts.DeleteFile && filePath != "" {
+		if fi, err := os.Stat(filePath); err == nil {
+			freedBytes += fi.Size()
+		}
+		os.Remove(filePath) //nolint:errcheck
+	}
+
+	if opts.DeleteThumbnail {
+		// coverPath may be absolute; also check thumbDir/<id>.jpg
+		if coverPath != "" {
+			if fi, err := os.Stat(coverPath); err == nil {
+				freedBytes += fi.Size()
+			}
+			os.Remove(coverPath) //nolint:errcheck
+		}
+		if thumbDir != "" {
+			p := thumbDir + "/" + id + ".jpg"
+			if fi, err := os.Stat(p); err == nil {
+				freedBytes += fi.Size()
+			}
+			os.Remove(p) //nolint:errcheck
+		}
+	}
+
+	if opts.DeleteRelated {
+		r.db.Exec("DELETE FROM reading_progress WHERE doc_id=?", id) //nolint:errcheck
+		r.db.Exec("DELETE FROM user_unlocks WHERE doc_id=?", id)      //nolint:errcheck
+		r.db.Exec("DELETE FROM share_events WHERE doc_id=?", id)      //nolint:errcheck
+	}
+
+	// Hard delete (FTS trigger cleans up search index automatically)
+	_, err := r.db.Exec("DELETE FROM documents WHERE id=?", id)
+	return freedBytes, err
+}
+
+// AddDeleteLog records a delete in the audit trail.
+func (r *DocumentRepo) AddDeleteLog(entry models.DeleteLog) error {
+	id := uuid.New().String()
+	_, err := r.db.Exec(
+		`INSERT INTO delete_log (id,doc_id,doc_title,deleted_by,freed_bytes,was_undone,deleted_at)
+		 VALUES (?,?,?,?,?,?,?)`,
+		id, entry.DocID, entry.DocTitle, entry.DeletedBy, entry.FreedBytes,
+		func() int {
+			if entry.WasUndone {
+				return 1
+			}
+			return 0
+		}(), entry.DeletedAt,
+	)
+	return err
+}
+
+// MarkDeleteLogUndone marks the audit log entry as undone.
+func (r *DocumentRepo) MarkDeleteLogUndone(docID string) error {
+	_, err := r.db.Exec(
+		`UPDATE delete_log SET was_undone=1 WHERE doc_id=? ORDER BY deleted_at DESC LIMIT 1`,
+		docID,
+	)
+	return err
+}
+
+// GetDeleteLogs returns recent delete audit entries.
+func (r *DocumentRepo) GetDeleteLogs(limit int) ([]models.DeleteLog, error) {
+	rows, err := r.db.Query(
+		`SELECT id,doc_id,doc_title,deleted_by,freed_bytes,was_undone,deleted_at
+		 FROM delete_log ORDER BY deleted_at DESC LIMIT ?`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var logs []models.DeleteLog
+	for rows.Next() {
+		var l models.DeleteLog
+		var wasUndone int
+		rows.Scan(&l.ID, &l.DocID, &l.DocTitle, &l.DeletedBy, &l.FreedBytes, &wasUndone, &l.DeletedAt) //nolint:errcheck
+		l.WasUndone = wasUndone == 1
+		logs = append(logs, l)
+	}
+	if logs == nil {
+		logs = []models.DeleteLog{}
+	}
+	return logs, rows.Err()
 }
 
 func (r *DocumentRepo) IncrementViews(id string) error {
@@ -233,7 +399,7 @@ func (r *DocumentRepo) SearchDocuments(query string) ([]models.SearchResult, err
 		FROM documents_fts
 		JOIN documents d ON d.id = documents_fts.id
 		LEFT JOIN document_locks dl ON dl.doc_id = d.id
-		WHERE documents_fts MATCH ?
+		WHERE documents_fts MATCH ? AND d.deleted_at IS NULL
 		ORDER BY rank
 		LIMIT 50
 	`, selectDocCols), safeQuery)
@@ -277,7 +443,7 @@ func (r *DocumentRepo) SearchDocuments(query string) ([]models.SearchResult, err
 func (r *DocumentRepo) GetDashboardStats() (models.DashboardStats, error) {
 	stats := models.DashboardStats{ByType: map[string]int{}}
 
-	rows, err := r.db.Query("SELECT type, COUNT(*) FROM documents GROUP BY type")
+	rows, err := r.db.Query("SELECT type, COUNT(*) FROM documents WHERE deleted_at IS NULL GROUP BY type")
 	if err != nil {
 		return stats, err
 	}
@@ -290,10 +456,10 @@ func (r *DocumentRepo) GetDashboardStats() (models.DashboardStats, error) {
 		stats.TotalDocuments += c
 	}
 
-	r.db.QueryRow("SELECT COALESCE(SUM(views),0) FROM documents").Scan(&stats.TotalViews) //nolint:errcheck
+	r.db.QueryRow("SELECT COALESCE(SUM(views),0) FROM documents WHERE deleted_at IS NULL").Scan(&stats.TotalViews) //nolint:errcheck
 
 	recentRows, err := r.db.Query(
-		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id ORDER BY d.views DESC, d.updated_at DESC LIMIT 10`, selectDocCols),
+		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id WHERE d.deleted_at IS NULL ORDER BY d.views DESC, d.updated_at DESC LIMIT 10`, selectDocCols),
 	)
 	if err == nil {
 		defer recentRows.Close()
@@ -306,7 +472,7 @@ func (r *DocumentRepo) GetDashboardStats() (models.DashboardStats, error) {
 	}
 
 	tagRows, err := r.db.Query(
-		`SELECT value as tag, COUNT(*) as cnt FROM documents, json_each(documents.tags) GROUP BY value ORDER BY cnt DESC LIMIT 20`,
+		`SELECT value as tag, COUNT(*) as cnt FROM documents, json_each(documents.tags) WHERE deleted_at IS NULL GROUP BY value ORDER BY cnt DESC LIMIT 20`,
 	)
 	if err == nil {
 		defer tagRows.Close()
@@ -343,7 +509,7 @@ func (r *DocumentRepo) UpdateCoverPath(id, coverPath, source string) error {
 func (r *DocumentRepo) GetDocsNeedingThumbnail() ([]models.Document, error) {
 	rows, err := r.db.Query(
 		fmt.Sprintf(`SELECT %s FROM documents d LEFT JOIN document_locks dl ON dl.doc_id = d.id
-		WHERE (d.cover_path IS NULL OR d.cover_path = '' OR d.thumbnail_source = 'svg' OR d.thumbnail_source = '')
+		WHERE (d.cover_path IS NULL OR d.cover_path = '' OR d.thumbnail_source = 'svg' OR d.thumbnail_source = '') AND d.deleted_at IS NULL
 		ORDER BY d.created_at DESC LIMIT 50`, selectDocCols),
 	)
 	if err != nil {

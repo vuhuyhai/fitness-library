@@ -191,6 +191,46 @@ export interface ChatResponse {
   isOnTopic: boolean
 }
 
+/** Controls what is cleaned up when a document is deleted */
+export interface DeleteOptions {
+  deleteFile: boolean
+  deleteThumbnail: boolean
+  deleteRelated: boolean
+}
+
+/** Impact preview shown before confirming deletion */
+export interface DeletePreview {
+  docId: string
+  title: string
+  fileSize: number
+  filePath: string
+  hasThumbnail: boolean
+  readCount: number
+  shareCount: number
+  unlockCount: number
+  isLocked: boolean
+}
+
+/** Result returned after initiating a delete */
+export interface DeleteResult {
+  success: boolean
+  freedBytes: number
+  deletedItems: number
+  undoToken: string
+  message: string
+}
+
+/** Audit log entry */
+export interface DeleteLog {
+  id: string
+  docId: string
+  docTitle: string
+  deletedBy: string
+  freedBytes: number
+  wasUndone: boolean
+  deletedAt: string
+}
+
 /** AI explanation of a fitness term */
 export interface TermExplanation {
   term: string

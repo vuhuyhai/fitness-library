@@ -25,6 +25,15 @@ interface LibraryStore {
   setQuickFilter: (f: QuickFilter) => void
   updateDocument: (doc: Document) => void
   removeDocument: (id: string) => void
+  addDocument: (doc: Document) => void
+
+  // Selection mode (admin batch delete)
+  isSelectionMode: boolean
+  selectedDocIds: Set<string>
+  toggleSelectionMode: () => void
+  toggleSelectDoc: (id: string) => void
+  selectAll: (ids: string[]) => void
+  clearSelection: () => void
 }
 
 export const useLibraryStore = create<LibraryStore>((set) => ({
@@ -56,4 +65,24 @@ export const useLibraryStore = create<LibraryStore>((set) => ({
     set((s) => ({ documents: s.documents.map((d) => (d.id === doc.id ? doc : d)) })),
   removeDocument: (id) =>
     set((s) => ({ documents: s.documents.filter((d) => d.id !== id) })),
+  addDocument: (doc) =>
+    set((s) => ({
+      documents: s.documents.some((d) => d.id === doc.id)
+        ? s.documents
+        : [doc, ...s.documents],
+    })),
+
+  // Selection
+  isSelectionMode: false,
+  selectedDocIds: new Set(),
+  toggleSelectionMode: () =>
+    set((s) => ({ isSelectionMode: !s.isSelectionMode, selectedDocIds: new Set() })),
+  toggleSelectDoc: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedDocIds)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return { selectedDocIds: next }
+    }),
+  selectAll: (ids) => set({ selectedDocIds: new Set(ids) }),
+  clearSelection: () => set({ selectedDocIds: new Set(), isSelectionMode: false }),
 }))

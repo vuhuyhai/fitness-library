@@ -23,6 +23,10 @@ import type {
   ChatMessage,
   ChatResponse,
   TermExplanation,
+  DeleteOptions,
+  DeletePreview,
+  DeleteResult,
+  DeleteLog,
 } from '../types'
 import { httpApi } from './httpApi'
 
@@ -43,8 +47,16 @@ const _wailsImpl = {
     go().CreateDocument(input),
   updateDocument: (id: string, updates: UpdateDocumentInput): Promise<void> =>
     go().UpdateDocument(id, updates),
-  deleteDocument: (id: string): Promise<void> =>
-    go().DeleteDocument(id),
+  deleteDocument: (id: string, _opts?: DeleteOptions): Promise<DeleteResult> =>
+    go().DeleteDocument(id).then(() => ({ success: true, freedBytes: 0, deletedItems: 1, undoToken: '', message: '' })),
+  batchDeleteDocuments: (_ids: string[], _opts: DeleteOptions): Promise<DeleteResult> =>
+    Promise.resolve({ success: true, freedBytes: 0, deletedItems: 0, undoToken: '', message: '' }),
+  undoDelete: (_token: string): Promise<{ docId: string }> =>
+    Promise.resolve({ docId: '' }),
+  getDeletePreview: (_id: string): Promise<DeletePreview> =>
+    Promise.resolve({ docId: '', title: '', fileSize: 0, filePath: '', hasThumbnail: false, readCount: 0, shareCount: 0, unlockCount: 0, isLocked: false }),
+  getDeleteLogs: (): Promise<DeleteLog[]> =>
+    Promise.resolve([]),
   searchDocuments: (query: string): Promise<SearchResult[]> =>
     go().SearchDocuments(query),
   incrementViews: (id: string): Promise<void> =>
