@@ -98,6 +98,10 @@ const _wailsImpl = {
   runAIPipeline: (docID: string): Promise<void> =>
     go().RunAIPipeline(docID),
 
+  // Upload temp file (Wails desktop: not used, stub only)
+  uploadTempFile: (_file: File): Promise<{ path: string }> =>
+    Promise.resolve({ path: '' }),
+
   // File system
   selectDirectory: (): Promise<string> =>
     go().SelectDirectory(),

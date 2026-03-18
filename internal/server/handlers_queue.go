@@ -79,6 +79,46 @@ func (s *Server) handleUpdateQueueItemCategory(w http.ResponseWriter, r *http.Re
 	writeOK(w, map[string]bool{"ok": true})
 }
 
+// handleUploadTempFile saves a single uploaded file to uploadDir and returns its
+// server-side path. Used by AddDocumentPage (web mode) before createDocument.
+func (s *Server) handleUploadTempFile(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(500 << 20); err != nil {
+		writeError(w, "form parse: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	fhs := r.MultipartForm.File["file"]
+	if len(fhs) == 0 {
+		writeError(w, "no file uploaded", http.StatusBadRequest)
+		return
+	}
+	fh := fhs[0]
+	src, err := fh.Open()
+	if err != nil {
+		writeError(w, "open: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer src.Close()
+
+	dst := filepath.Join(s.uploadDir, filepath.Base(fh.Filename))
+	if _, err := os.Stat(dst); err == nil {
+		ext  := filepath.Ext(fh.Filename)
+		base := fh.Filename[:len(fh.Filename)-len(ext)]
+		dst   = filepath.Join(s.uploadDir, fmt.Sprintf("%s_%d%s", base, time.Now().UnixMilli(), ext))
+	}
+	out, err := os.Create(dst)
+	if err != nil {
+		writeError(w, "create: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, err := io.Copy(out, src); err != nil {
+		out.Close()
+		writeError(w, "save: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out.Close()
+	writeOK(w, map[string]string{"path": dst})
+}
+
 // handleUploadFiles accepts multipart file uploads, saves them to uploadDir,
 // and queues them for processing. Replaces the desktop SelectFiles dialog.
 func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { FileText, Upload, Dumbbell, StickyNote, Sparkles, Save, X } from 'lucide-react'
-import { api } from '../../lib/wailsApi'
+import { api, isWails } from '../../lib/wailsApi'
 import { useLibraryStore } from '../../store/useLibraryStore'
 import { CAT_NAMES, CAT_COLORS } from '../../lib/utils'
 import type { CreateDocumentInput, Exercise } from '../../types'
@@ -85,7 +85,24 @@ export default function AddDocumentPage() {
   }
 
   // ── File picker ──
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSelectedFile(file)
+    setFileName(file.name)
+    setFilePath(file.name) // display only; real server path resolved on save
+    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''))
+    e.target.value = '' // allow re-selecting same file
+  }
+
   async function pickFile() {
+    if (!isWails) {
+      fileInputRef.current?.click()
+      return
+    }
     try {
       const paths = await api.selectFiles()
       if (!paths || paths.length === 0) return
@@ -116,12 +133,18 @@ export default function AddDocumentPage() {
       if (activeTab === 'article') {
         input = { title, type: 'article', cat_id: catId, content: articleContent, tags }
       } else if (activeTab === 'file') {
-        if (!filePath) { toast.error('Chưa chọn file'); setSaving(false); return }
+        if (!isWails && !selectedFile) { toast.error('Chưa chọn file'); setSaving(false); return }
+        if (isWails && !filePath) { toast.error('Chưa chọn file'); setSaving(false); return }
         const ext = fileName.split('.').pop()?.toLowerCase()
         const type = ext === 'mp4' || ext === 'mkv' || ext === 'avi' ? 'video'
           : ext === 'pdf' ? 'pdf'
           : 'article'
-        input = { title, type, cat_id: catId, file_path: filePath, tags }
+        let resolvedPath = filePath
+        if (!isWails && selectedFile) {
+          const res = await api.uploadTempFile(selectedFile)
+          resolvedPath = res.path
+        }
+        input = { title, type, cat_id: catId, file_path: resolvedPath, tags }
       } else if (activeTab === 'workout') {
         const plan = { goal, level, duration_weeks: weeks, sessions_per_week: sessionsPerWeek, exercises }
         input = { title, type: 'workout', cat_id: catId, content: JSON.stringify(plan), tags }
@@ -142,7 +165,7 @@ export default function AddDocumentPage() {
     } finally {
       setSaving(false)
     }
-  }, [activeTab, title, catId, tags, articleContent, filePath, fileName, goal, level, weeks, sessionsPerWeek, exercises, noteContent, aiEnabled])
+  }, [activeTab, title, catId, tags, articleContent, filePath, fileName, selectedFile, goal, level, weeks, sessionsPerWeek, exercises, noteContent, aiEnabled])
 
   const flatCats = categories.flatMap((c) => [c, ...(c.children || [])])
 
@@ -363,6 +386,15 @@ export default function AddDocumentPage() {
           </div>
         </div>
       </div>
+
+      {/* Hidden file input for web mode */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.md,.mp4,.mkv,.avi"
+        className="hidden"
+        onChange={onFileInputChange}
+      />
     </div>
   )
 }

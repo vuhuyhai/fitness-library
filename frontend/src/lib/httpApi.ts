@@ -209,6 +209,25 @@ export const httpApi = {
   runAIPipeline: (docID: string): Promise<void> =>
     post(`/api/admin/documents/${docID}/ai`),
 
+  // Upload temp file (web mode: save file server-side, return its path)
+  uploadTempFile: (file: File): Promise<{ path: string }> => {
+    const form = new FormData()
+    form.append('file', file)
+    const token = getToken()
+    return fetch(url('/api/admin/upload-temp'), {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        handleUnauthorized(res)
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error ?? res.statusText)
+      }
+      return res.json()
+    })
+  },
+
   // File system (web stubs — not applicable in browser)
   selectDirectory: (): Promise<string> => Promise.resolve(''),
   selectFiles:     (): Promise<string[]> => Promise.resolve([]),
