@@ -7,10 +7,11 @@ import ViewerPanel from '../../features/viewer/ViewerPanel'
 
 interface Props {
   children: ReactNode
-  onClearRole: () => void
+  onSwitchToUser: () => void
+  onLogout: () => void
 }
 
-export default function AdminShell({ children, onClearRole }: Props) {
+export default function AdminShell({ children, onSwitchToUser, onLogout }: Props) {
   const { closeViewer, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
   // Escape closes viewer
@@ -24,7 +25,7 @@ export default function AdminShell({ children, onClearRole }: Props) {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface text-fg-primary">
-      <AdminTitleBar onClearRole={onClearRole} />
+      <AdminTitleBar onSwitchToUser={onSwitchToUser} />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Mobile overlay */}
@@ -36,7 +37,7 @@ export default function AdminShell({ children, onClearRole }: Props) {
           />
         )}
 
-        <AdminSidebar onClearRole={onClearRole} />
+        <AdminSidebar onSwitchToUser={onSwitchToUser} onLogout={onLogout} />
 
         <main className="flex-1 overflow-hidden relative flex flex-col">
           <div className="flex-1 overflow-hidden flex flex-col">

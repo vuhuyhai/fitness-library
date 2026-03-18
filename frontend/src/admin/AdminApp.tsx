@@ -23,10 +23,11 @@ function Spinner() {
 }
 
 interface Props {
-  onClearRole: () => void
+  onSwitchToUser: () => void
+  onLogout: () => void
 }
 
-export default function AdminApp({ onClearRole }: Props) {
+export default function AdminApp({ onSwitchToUser, onLogout }: Props) {
   const { setSettings, setAiStatus } = useSettingsStore()
   const { theme }                    = useTheme()
 
@@ -58,7 +59,7 @@ export default function AdminApp({ onClearRole }: Props) {
 
   return (
     <Router {...(isWails ? { initialEntries: ['/dashboard'] } : {})}>
-      <AdminShell onClearRole={onClearRole}>
+      <AdminShell onSwitchToUser={onSwitchToUser} onLogout={onLogout}>
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  Home, BookOpen, Bookmark, TrendingUp, Sun, Moon, UserRound,
+  Home, BookOpen, Bookmark, TrendingUp, Sun, Moon, ShieldCheck,
 } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useUIStore } from '../../store/useUIStore'
@@ -12,14 +12,13 @@ const NAV_LINKS = [
   { to: '/progress',  label: 'Tiến Độ',   Icon: TrendingUp},
 ]
 
-// Active = green accent for user shell
 const ACTIVE_GREEN = '#16a34a'
 
 interface Props {
-  onClearRole: () => void
+  onRequestAdmin: () => void
 }
 
-export default function UserSidebar({ onClearRole }: Props) {
+export default function UserSidebar({ onRequestAdmin }: Props) {
   const { theme, toggle }                           = useTheme()
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
@@ -95,18 +94,11 @@ export default function UserSidebar({ onClearRole }: Props) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-3 space-y-3 hidden lg:block flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: `${ACTIVE_GREEN}18` }}>
-            <UserRound className="w-3.5 h-3.5" style={{ color: ACTIVE_GREEN }} />
-          </div>
-          <span className="text-xs text-fg-muted flex-1">Độc Giả</span>
-        </div>
-
+      <div className="border-t border-sidebar-border p-3 space-y-1 flex-shrink-0">
+        {/* Dark/light toggle — desktop */}
         <button
           onClick={toggle}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-fg-secondary hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs"
+          className="hidden lg:flex w-full items-center gap-2 px-2 py-2 rounded-md text-fg-secondary hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs"
         >
           {theme === 'dark'
             ? <><Sun className="w-3.5 h-3.5" /> Chế độ sáng</>
@@ -114,13 +106,14 @@ export default function UserSidebar({ onClearRole }: Props) {
           }
         </button>
 
+        {/* Admin entry point — low profile, not obvious to regular users */}
         <button
-          onClick={onClearRole}
-          title="Chuyển sang giao diện Quản trị"
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-fg-muted hover:bg-surface-3 hover:text-fg-primary transition-colors text-xs"
+          onClick={onRequestAdmin}
+          title="Quản trị"
+          className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-fg-muted hover:bg-surface-3 hover:text-primary transition-colors text-xs justify-center lg:justify-start"
         >
-          <UserRound className="w-3.5 h-3.5" />
-          Đổi vai trò
+          <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="hidden lg:block">Quản trị</span>
         </button>
       </div>
     </aside>

@@ -3,10 +3,10 @@ import { WindowMinimise, WindowToggleMaximise, Quit } from '../../lib/events'
 import { useUIStore } from '../../store/useUIStore'
 
 interface Props {
-  onClearRole: () => void
+  onRequestAdmin: () => void
 }
 
-export default function UserTitleBar({ onClearRole }: Props) {
+export default function UserTitleBar({ onRequestAdmin }: Props) {
   const { mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
 
   return (
@@ -28,11 +28,11 @@ export default function UserTitleBar({ onClearRole }: Props) {
 
       <div className="flex items-center h-full no-drag gap-1 pr-1">
         <button
-          onClick={onClearRole}
-          title="Chuyển sang giao diện Quản trị"
+          onClick={onRequestAdmin}
+          title="Đăng nhập quản trị"
           className="flex items-center gap-1 px-2 h-6 text-[10px] text-fg-muted hover:text-fg-primary border border-border/50 rounded hover:bg-surface-3 transition-colors"
         >
-          Đổi vai trò
+          Quản trị
         </button>
 
         <button onClick={WindowMinimise} aria-label="Thu nhỏ"

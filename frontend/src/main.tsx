@@ -1,59 +1,97 @@
-import React, { lazy, Suspense, useState } from 'react'
+import React, { lazy, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { motion, AnimatePresence } from 'framer-motion'
 import './style.css'
 import { ThemeProvider } from './contexts/ThemeContext'
-import RoleSelector from './RoleSelector'
-import { isWails } from './lib/wailsApi'
-import { isLoggedIn } from './lib/auth'
-import LoginPage from './features/auth/LoginPage'
+import { isLoggedIn, clearToken } from './lib/auth'
+import AppSplashScreen from './shared/components/AppSplashScreen'
+import AdminLoginModal from './shared/components/AdminLoginModal'
 
-// Lazy-load shells để tách bundle
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 const UserApp  = lazy(() => import('./user/UserApp'))
 
-function Spinner() {
-  return (
-    <div className="h-screen flex items-center justify-center bg-surface">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-}
-
-type Role = 'admin' | 'user'
+type Shell = 'admin' | 'user' | 'loading'
 
 function Root() {
-  const [role, setRole] = useState<Role | null>(
-    () => localStorage.getItem('fitness-library-role') as Role | null
-  )
-  // Web-only: track whether admin is authenticated
-  const [authed, setAuthed] = useState(() => isWails || isLoggedIn())
+  const [shell, setShell]          = useState<Shell>('loading')
+  const [loginModalOpen, setLogin] = useState(false)
 
-  function handleSelect(r: Role, remember: boolean) {
-    if (remember) localStorage.setItem('fitness-library-role', r)
-    setRole(r)
-  }
-
-  function handleClearRole() {
+  useEffect(() => {
+    // Clean up old role key from previous version
     localStorage.removeItem('fitness-library-role')
-    setRole(null)
+    // Determine initial shell from JWT validity
+    setShell(isLoggedIn() ? 'admin' : 'user')
+  }, [])
+
+  function handleSwitchToUser() {
+    setShell('user')
   }
 
-  // Web admin requires login
-  if (!isWails && role === 'admin' && !authed) {
-    return <LoginPage onSuccess={() => setAuthed(true)} />
+  function handleLogout() {
+    clearToken()
+    setShell('user')
   }
 
-  if (!role) {
-    return <RoleSelector onSelect={handleSelect} />
+  function handleRequestAdmin() {
+    // JWT still valid → switch directly (no re-login needed)
+    if (isLoggedIn()) {
+      setShell('admin')
+    } else {
+      setLogin(true)
+    }
+  }
+
+  function handleLoginSuccess() {
+    setLogin(false)
+    setShell('admin')
   }
 
   return (
-    <Suspense fallback={<Spinner />}>
-      {role === 'admin'
-        ? <AdminApp onClearRole={handleClearRole} />
-        : <UserApp  onClearRole={handleClearRole} />
-      }
-    </Suspense>
+    <>
+      <AnimatePresence mode="wait">
+        {shell === 'loading' ? (
+          <motion.div key="splash" className="h-screen">
+            <AppSplashScreen />
+          </motion.div>
+        ) : shell === 'admin' ? (
+          <motion.div
+            key="admin"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="h-screen"
+          >
+            <Suspense fallback={<AppSplashScreen />}>
+              <AdminApp
+                onSwitchToUser={handleSwitchToUser}
+                onLogout={handleLogout}
+              />
+            </Suspense>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="user"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="h-screen"
+          >
+            <Suspense fallback={<AppSplashScreen />}>
+              <UserApp onRequestAdmin={handleRequestAdmin} />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Login modal lives outside shell so it survives shell transitions */}
+      <AdminLoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLogin(false)}
+        onSuccess={handleLoginSuccess}
+      />
+    </>
   )
 }
 

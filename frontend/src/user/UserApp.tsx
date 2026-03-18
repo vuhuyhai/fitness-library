@@ -21,15 +21,15 @@ function Spinner() {
 }
 
 interface Props {
-  onClearRole: () => void
+  onRequestAdmin: () => void
 }
 
-export default function UserApp({ onClearRole }: Props) {
+export default function UserApp({ onRequestAdmin }: Props) {
   const { theme } = useTheme()
 
   return (
     <Router {...(isWails ? { initialEntries: ['/home'] } : {})}>
-      <UserShell onClearRole={onClearRole}>
+      <UserShell onRequestAdmin={onRequestAdmin}>
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/"          element={<Navigate to="/home" replace />} />
